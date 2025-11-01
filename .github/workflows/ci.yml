@@ -37,6 +37,6 @@ jobs:
       - name: Copy binary to test directory
         run: cp flowcraft ./test_project
 
-      - name: Run flowcraft on test-project
-        working-directory: ./test-project
+      - name: Run flowcraft on test_project
+        working-directory: ./test_project
         run: ./flowcraft run --file flow.toml
