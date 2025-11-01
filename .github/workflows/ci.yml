@@ -28,6 +28,9 @@ jobs:
         with:
           node-version: '24.x'
 
+      - name: Run flowcraft unit tests
+        run: go test ./...
+
       - name: Build flowcraft binary
         run: go build -o flowcraft ./cmd/flowcraft
 
