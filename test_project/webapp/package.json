@@ -1,0 +1,12 @@
+{
+  "name": "test-project-webapp",
+  "version": "1.0.0",
+  "description": "A fake webapp for testing flowcraft",
+  "main": "index.js",
+  "author": "",
+  "private": true,
+  "scripts": {
+    "build": "mkdir -p dist && cat index.js > dist/bundle.js",
+    "start": "node dist/bundle.js"
+  }
+}

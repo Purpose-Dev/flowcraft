@@ -16,3 +16,4 @@ fabric.properties
 *.test
 *.out
 go.work
+flowcraft

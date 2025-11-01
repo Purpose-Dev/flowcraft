@@ -1,0 +1,43 @@
+[jobs.setup]
+depends_on = []
+[[jobs.setup.steps]]
+name = "Create artifacts directory"
+cmd = "mkdir -p bin"
+
+[jobs.build-api]
+depends_on = ["setup"]
+[[jobs.build-api.steps]]
+name = "Go Build API"
+cmd = "echo '[API] Compiling Go binary...' && go build -o ../bin/api-server"
+dir = "api"
+
+[jobs.build-webapp]
+depends_on = ["setup"]
+[[jobs.build-webapp.steps]]
+name = "NPM Install"
+cmd = "npm install"
+dir = "webapp"
+[[jobs.build-webapp.steps]]
+name = "NPM Build"
+cmd = "npm run build"
+dir = "webapp"
+
+[jobs.test-api]
+depends_on = ["build-api"]
+[[jobs.test-api.parallel]]
+name = "Go Test (Unit)"
+cmd = "go test -v ./..."
+dir = "api"
+[[jobs.test-api.parallel]]
+name = "Smoke Test (Integration)"
+cmd = "../bin/api-server"
+dir = "api"
+
+[jobs.deploy]
+depends_on = ["test-api", "build-webapp"]
+[[jobs.deploy.steps]]
+name = "Check Artifacts"
+cmd = "echo 'Checking artifacts...' && ls -l bin/api-server && ls -l webapp/dist/bundle.js"
+[[jobs.deploy.steps]]
+name = "Deploy"
+cmd = "echo '[DEPLOY] Artifacts verified. Deploying !'"
