@@ -21,6 +21,7 @@ import (
 	"log"
 
 	"github.com/Purpose-Dev/flowcraft/internal/config"
+	"github.com/Purpose-Dev/flowcraft/internal/engine"
 	"github.com/Purpose-Dev/flowcraft/internal/runner"
 	"github.com/spf13/cobra"
 )
@@ -32,43 +33,33 @@ var runCmd = &cobra.Command{
 building the dependency graph (DAG), and executing the jobs.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		logger := runner.NewLogger()
+		logger.Info("Flowcraft execution started.")
 
 		filePath, _ := cmd.Flags().GetString("file")
 		logger.Info(fmt.Sprintf("Loading configuration from: %s", filePath))
 
-		_, err := config.LoadConfig(filePath)
+		cfg, err := config.LoadConfig(filePath)
 		if err != nil {
 			logger.Error(fmt.Sprintf("Error loading configuration: %v", err))
 			log.Fatalf("Critical error: %v", err)
 		}
+		logger.Info(fmt.Sprintf("Configuration loaded successfully. Found %d job(s).", len(cfg.Jobs)))
 
-		logger.Info("Configuration loaded successfully.")
+		logger.Info("Building dependency graph (DAG)...")
 
-		testStep := config.Step{
-			Name: "Test Runner (Local)",
-			Cmd:  "echo 'Hello from the runner ^_^ !' && sleep 1 && echo 'Test step passed'",
-			Dir:  "",
+		graph, err := engine.BuildDag(cfg)
+		if err != nil {
+			logger.Error(fmt.Sprintf("Error building DAG: %v", err))
+			log.Fatalf("Critical error: %v", err)
+		}
+		logger.Success("DAG built and validated successfully (no cycles found).")
+
+		if err := engine.Run(graph, logger); err != nil {
+			logger.Error(fmt.Sprintf("Pipeline execution failed: %v", err))
+			log.Fatalf("Critical error: %v", err)
 		}
 
-		if err := runner.Execute(testStep, logger); err != nil {
-			logger.Error(fmt.Sprintf("Test step failed: %v", err))
-		}
-
-		failingStep := config.Step{
-			Name: "Test Failing Runner",
-			Cmd:  "echo 'This command will fail' && exit 1",
-			Dir:  "",
-		}
-
-		if err := runner.Execute(failingStep, logger); err != nil {
-			logger.Error(fmt.Sprintf("Failing test step finished (as expected)"))
-		} else {
-			logger.Success("Failing test step finished (UNEXPECTEDLY)")
-		}
-
-		/*for jobName := range cfg.Jobs {
-			fmt.Printf("    - Found job: %s\n", jobName)
-		}*/
+		logger.Success("Flowcraft execution finished successfully.")
 	},
 }
 
