@@ -17,23 +17,23 @@
 package runner
 
 import (
+	"bufio"
 	"fmt"
-	"io"
-	"os"
 	"os/exec"
 	"sync"
 
 	"github.com/Purpose-Dev/flowcraft/internal/config"
 )
 
-func Execute(step config.Step) error {
-	fmt.Printf("--- Executing Step: %s ---\n", step.Name)
-	fmt.Printf("CMD: %s\n", step.Cmd)
+func Execute(step config.Step, logger *Logger) error {
+	logger.StartGroup(fmt.Sprintf("Step: %s", step.Name))
+	defer logger.EndGroup()
 
+	logger.Info(fmt.Sprintf("Executing command: %s", step.Cmd))
 	cmd := exec.Command("bash", "-c", step.Cmd)
 	if step.Dir != "" {
 		cmd.Dir = step.Dir
-		fmt.Printf("DIR: %s\n", step.Dir)
+		logger.Info(fmt.Sprintf("Working directory: %s", step.Dir))
 	}
 
 	stdoutPipe, err := cmd.StdoutPipe()
@@ -54,24 +54,34 @@ func Execute(step config.Step) error {
 
 	go func() {
 		defer wg.Done()
-		if _, err := io.Copy(os.Stdout, stdoutPipe); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "error copying stdout for step '%s': %v\n", step.Name, err)
+		scanner := bufio.NewScanner(stdoutPipe)
+		for scanner.Scan() {
+			logger.Info(scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			logger.Error(fmt.Sprintf("Error scanning stdout for step '%s': %v\n", step.Name, err))
 		}
 	}()
 
 	go func() {
 		defer wg.Done()
-		if _, err := io.Copy(os.Stderr, stderrPipe); err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "error copying stderr for step '%s': %v\n", step.Name, err)
+		scanner := bufio.NewScanner(stderrPipe)
+		for scanner.Scan() {
+			logger.Info(scanner.Text())
+		}
+		if err := scanner.Err(); err != nil {
+			logger.Error(fmt.Sprintf("Error scanning stderr for step '%s': %v\n", step.Name, err))
 		}
 	}()
 
 	wg.Wait()
 
 	if err := cmd.Wait(); err != nil {
-		return fmt.Errorf("step '%s' failed: %w", step.Name, err)
+		wrappedError := fmt.Errorf("step '%s' failed: %w", step.Name, err)
+		logger.Error(wrappedError.Error())
+		return wrappedError
 	}
 
-	fmt.Printf("--- Step Succeeded: %s ---\n", step.Name)
+	logger.Success(fmt.Sprintf("Step '%s' completed successfully", step.Name))
 	return nil
 }

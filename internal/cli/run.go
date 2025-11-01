@@ -21,6 +21,7 @@ import (
 	"log"
 
 	"github.com/Purpose-Dev/flowcraft/internal/config"
+	"github.com/Purpose-Dev/flowcraft/internal/runner"
 	"github.com/spf13/cobra"
 )
 
@@ -30,19 +31,44 @@ var runCmd = &cobra.Command{
 	Long: `Executes a flowcraft pipeline by reading a flow.toml file,
 building the dependency graph (DAG), and executing the jobs.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		logger := runner.NewLogger()
+
 		filePath, _ := cmd.Flags().GetString("file")
+		logger.Info(fmt.Sprintf("Loading configuration from: %s", filePath))
 
-		fmt.Printf("Loading configuration from: %s\n", filePath)
-
-		cfg, err := config.LoadConfig(filePath)
+		_, err := config.LoadConfig(filePath)
 		if err != nil {
-			log.Fatalf("Error loading configuration:\n%v\n", err)
+			logger.Error(fmt.Sprintf("Error loading configuration: %v", err))
+			log.Fatalf("Critical error: %v", err)
 		}
 
-		log.Printf("Configuration loaded successfully. Found %d job(s).\n", len(cfg.Jobs))
-		for jobName := range cfg.Jobs {
-			fmt.Printf("    - Found job: %s\n", jobName)
+		logger.Info("Configuration loaded successfully.")
+
+		testStep := config.Step{
+			Name: "Test Runner (Local)",
+			Cmd:  "echo 'Hello from the runner ^_^ !' && sleep 1 && echo 'Test step passed'",
+			Dir:  "",
 		}
+
+		if err := runner.Execute(testStep, logger); err != nil {
+			logger.Error(fmt.Sprintf("Test step failed: %v", err))
+		}
+
+		failingStep := config.Step{
+			Name: "Test Failing Runner",
+			Cmd:  "echo 'This command will fail' && exit 1",
+			Dir:  "",
+		}
+
+		if err := runner.Execute(failingStep, logger); err != nil {
+			logger.Error(fmt.Sprintf("Failing test step finished (as expected)"))
+		} else {
+			logger.Success("Failing test step finished (UNEXPECTEDLY)")
+		}
+
+		/*for jobName := range cfg.Jobs {
+			fmt.Printf("    - Found job: %s\n", jobName)
+		}*/
 	},
 }
 
