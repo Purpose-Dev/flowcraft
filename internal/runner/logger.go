@@ -66,7 +66,7 @@ func (l *Logger) StartGroup(title string) {
 	if l.isCI {
 		fmt.Printf("::group::%s\n", title)
 	} else {
-		fmt.Printf("\n%s-> %s%s\n", ColorYellow, title, ColorReset)
+		fmt.Printf("\n%s▶ %s%s\n", ColorYellow, title, ColorReset)
 		fmt.Println("------------------------------------------------")
 	}
 }
