@@ -133,3 +133,58 @@ func (g *Graph) detectCycles() error {
 
 	return nil
 }
+
+// TopologicalSort performs a topological sort on the graph using Kahn's algorithm.
+// It returns the nodes in "levels" of execution.
+// Example: [ [A], [B, C], [D] ]
+// This means A runs first, then B and C run parallelly, then D runs.
+func (g *Graph) TopologicalSort() ([][]*Node, error) {
+	inDegree := make(map[string]int)
+	for name, node := range g.Nodes {
+		inDegree[name] = len(node.Dependencies)
+	}
+
+	var queue []*Node
+	for name, degree := range inDegree {
+		if degree == 0 {
+			queue = append(queue, g.Nodes[name])
+		}
+	}
+
+	var levels [][]*Node
+
+	for len(queue) > 0 {
+		currentLevel := make([]*Node, len(queue))
+		copy(currentLevel, queue)
+		levels = append(levels, currentLevel)
+
+		var nextQueue []*Node
+
+		for _, node := range queue {
+			for _, dependent := range node.Dependents {
+				depName := dependent.Name
+				inDegree[depName]--
+
+				if inDegree[depName] == 0 {
+					nextQueue = append(nextQueue, dependent)
+				}
+			}
+		}
+
+		queue = nextQueue
+	}
+
+	visitedCount := 0
+	for _, level := range levels {
+		visitedCount += len(level)
+	}
+
+	if visitedCount != len(g.Nodes) {
+		return nil, fmt.Errorf(
+			"graph has a cycle (topological sort failed to visit all nodes, %d vs %d)",
+			visitedCount, len(g.Nodes),
+		)
+	}
+
+	return levels, nil
+}
