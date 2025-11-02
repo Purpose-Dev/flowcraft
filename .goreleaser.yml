@@ -1,0 +1,40 @@
+builds:
+  - id: "flowcraft"
+    main: ./cmd/flowcraft
+    binary: flowcraft
+    ldflags:
+      - -s -w -X main.version={{.Version}} -X main.commit={{.Commit}}
+    goos:
+      - linux
+      - windows
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+    goarm:
+      - "6"
+
+archives:
+  - id: default
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      - LICENSE
+      - NOTICE
+      - README.md
+
+checksum:
+  name_template: "{{ .ProjectName }}_checksums.txt"
+
+release:
+  github:
+    owner: Purpose-Dev
+    name: flowcraft
+  draft: true
+
+changelog:
+  sort: asc
+  filters:
+    include:
+      - '^feat'
+      - '^fix'
+      - '^test'
