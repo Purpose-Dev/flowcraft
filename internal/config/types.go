@@ -18,7 +18,7 @@ package config
 
 type Config struct {
 	Jobs map[string]Job    `toml:"jobs"`
-	Env  map[string]string `toml:"jobs"`
+	Env  map[string]string `toml:"env"`
 }
 
 type Job struct {

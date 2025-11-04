@@ -57,7 +57,7 @@ building the dependency graph (DAG), and executing the jobs.`,
 		}
 		logger.Success("DAG built and validated successfully (no cycles found).")
 
-		if err := engine.Run(ctx, graph, logger); err != nil {
+		if err := engine.Run(ctx, cfg, graph, logger); err != nil {
 			if err == context.Canceled {
 				logger.Error("Pipeline execution cancelled by user (Ctrl+C).")
 				log.Fatal("Execution cancelled.")
