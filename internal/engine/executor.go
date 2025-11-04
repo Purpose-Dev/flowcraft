@@ -27,14 +27,14 @@ import (
 
 // executeJob runs all steps for a single job.
 // It acts as a "micro-orchestrator" for a job.
-func executeJob(ctx context.Context, jobName string, job config.Job, logger *runner.Logger) error {
+func executeJob(ctx context.Context, jobName string, job config.Job, envVars map[string]string, logger *runner.Logger) error {
 	logger.StartGroup(fmt.Sprintf("Job: %s", jobName))
 	defer logger.EndGroup()
 
 	if len(job.Steps) > 0 {
 		logger.Info(fmt.Sprintf("Starting %d sequential steps for '%s'", len(job.Steps), jobName))
 		for _, step := range job.Steps {
-			if err := runner.Execute(ctx, step, logger); err != nil {
+			if err := runner.Execute(ctx, step, envVars, logger); err != nil {
 				return fmt.Errorf("sequential step '%s' in job '%s' failed: %w", step.Name, jobName, err)
 			}
 			if err := ctx.Err(); err != nil {
@@ -60,7 +60,7 @@ func executeJob(ctx context.Context, jobName string, job config.Job, logger *run
 			go func(s config.Step) {
 				defer wg.Done()
 
-				err := runner.Execute(jobCtx, s, logger)
+				err := runner.Execute(jobCtx, s, envVars, logger)
 				if err != nil {
 					errMutex.Lock()
 					if firstError == nil {

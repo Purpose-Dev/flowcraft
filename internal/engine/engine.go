@@ -21,10 +21,11 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/Purpose-Dev/flowcraft/internal/config"
 	"github.com/Purpose-Dev/flowcraft/internal/runner"
 )
 
-func Run(ctx context.Context, graph *Graph, logger *runner.Logger) error {
+func Run(ctx context.Context, cfg *config.Config, graph *Graph, logger *runner.Logger) error {
 	levels, err := graph.TopologicalSort()
 	if err != nil {
 		return fmt.Errorf("failed to sort graph: %w", err)
@@ -53,7 +54,8 @@ func Run(ctx context.Context, graph *Graph, logger *runner.Logger) error {
 			go func(n *Node) {
 				defer wg.Done()
 
-				err := executeJob(levelCtx, n.Name, n.Job, logger)
+				jobEnvs := mergeEnvs(cfg.Env, n.Job.Env)
+				err := executeJob(levelCtx, n.Name, n.Job, jobEnvs, logger)
 				if err != nil {
 					errMutex.Lock()
 					if firstError == nil {
@@ -89,4 +91,18 @@ func Run(ctx context.Context, graph *Graph, logger *runner.Logger) error {
 
 	logger.Success("Pipeline finished successfully. All jobs completed.")
 	return nil
+}
+
+func mergeEnvs(globalEnv, jobEnv map[string]string) map[string]string {
+	merged := make(map[string]string)
+
+	for k, v := range globalEnv {
+		merged[k] = v
+	}
+
+	for k, v := range jobEnv {
+		merged[k] = v
+	}
+
+	return merged
 }
