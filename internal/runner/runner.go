@@ -20,13 +20,14 @@ import (
 	"bufio"
 	"context"
 	"fmt"
+	"os"
 	"os/exec"
 	"sync"
 
 	"github.com/Purpose-Dev/flowcraft/internal/config"
 )
 
-func Execute(ctx context.Context, step config.Step, logger *Logger) error {
+func Execute(ctx context.Context, step config.Step, envVars map[string]string, logger *Logger) error {
 	logger.StartGroup(fmt.Sprintf("Step: %s", step.Name))
 	defer logger.EndGroup()
 
@@ -34,12 +35,18 @@ func Execute(ctx context.Context, step config.Step, logger *Logger) error {
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("Executing command: %s", step.Cmd))
-	cmd := exec.CommandContext(ctx, "bash", "-c", step.Cmd)
-	if step.Dir != "" {
-		cmd.Dir = step.Dir
-		logger.Info(fmt.Sprintf("Working directory: %s", step.Dir))
+	expander, finalEnv := buildEnvironment(envVars)
+	cmdStr := expander(step.Cmd)
+	cmdDir := expander(step.Dir)
+
+	logger.Info(fmt.Sprintf("Executing command: %s", cmdStr))
+	cmd := exec.CommandContext(ctx, "bash", "-c", cmdStr)
+	if cmdDir != "" {
+		cmd.Dir = cmdDir
+		logger.Info(fmt.Sprintf("Working directory: %s", cmdDir))
 	}
+
+	cmd.Env = finalEnv
 
 	stdoutPipe, err := cmd.StdoutPipe()
 	if err != nil {
@@ -92,4 +99,27 @@ func Execute(ctx context.Context, step config.Step, logger *Logger) error {
 
 	logger.Success(fmt.Sprintf("Step '%s' completed successfully", step.Name))
 	return nil
+}
+
+func buildEnvironment(customEnvs map[string]string) (func(string) string, []string) {
+	envMap := make(map[string]string)
+	for k, v := range customEnvs {
+		envMap[k] = v
+	}
+
+	finalEnv := os.Environ()
+	for k, v := range customEnvs {
+		finalEnv = append(finalEnv, fmt.Sprintf("%s=%s", k, v))
+	}
+
+	expander := func(s string) string {
+		return os.Expand(s, func(key string) string {
+			if val, ok := envMap[key]; ok {
+				return val
+			}
+			return os.Getenv(key)
+		})
+	}
+
+	return expander, finalEnv
 }
