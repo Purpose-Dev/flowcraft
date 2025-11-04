@@ -17,13 +17,15 @@
 package config
 
 type Config struct {
-	Jobs map[string]Job `toml:"jobs"`
+	Jobs map[string]Job    `toml:"jobs"`
+	Env  map[string]string `toml:"jobs"`
 }
 
 type Job struct {
-	Steps     []Step   `toml:"steps"`
-	Parallel  []Step   `toml:"parallel"`
-	DependsOn []string `toml:"depends_on"`
+	Env       map[string]string `toml:"env"`
+	Steps     []Step            `toml:"steps"`
+	Parallel  []Step            `toml:"parallel"`
+	DependsOn []string          `toml:"depends_on"`
 }
 
 type Step struct {
