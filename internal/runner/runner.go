@@ -18,6 +18,7 @@ package runner
 
 import (
 	"bufio"
+	"context"
 	"fmt"
 	"os/exec"
 	"sync"
@@ -25,12 +26,16 @@ import (
 	"github.com/Purpose-Dev/flowcraft/internal/config"
 )
 
-func Execute(step config.Step, logger *Logger) error {
+func Execute(ctx context.Context, step config.Step, logger *Logger) error {
 	logger.StartGroup(fmt.Sprintf("Step: %s", step.Name))
 	defer logger.EndGroup()
 
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+
 	logger.Info(fmt.Sprintf("Executing command: %s", step.Cmd))
-	cmd := exec.Command("bash", "-c", step.Cmd)
+	cmd := exec.CommandContext(ctx, "bash", "-c", step.Cmd)
 	if step.Dir != "" {
 		cmd.Dir = step.Dir
 		logger.Info(fmt.Sprintf("Working directory: %s", step.Dir))
@@ -77,6 +82,9 @@ func Execute(step config.Step, logger *Logger) error {
 	wg.Wait()
 
 	if err := cmd.Wait(); err != nil {
+		if ctx.Err() == context.Canceled {
+			return context.Canceled
+		}
 		wrappedError := fmt.Errorf("step '%s' failed: %w", step.Name, err)
 		logger.Error(wrappedError.Error())
 		return wrappedError

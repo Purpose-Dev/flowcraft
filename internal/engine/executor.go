@@ -17,6 +17,7 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -26,15 +27,18 @@ import (
 
 // executeJob runs all steps for a single job.
 // It acts as a "micro-orchestrator" for a job.
-func executeJob(jobName string, job config.Job, logger *runner.Logger) error {
+func executeJob(ctx context.Context, jobName string, job config.Job, logger *runner.Logger) error {
 	logger.StartGroup(fmt.Sprintf("Job: %s", jobName))
 	defer logger.EndGroup()
 
 	if len(job.Steps) > 0 {
 		logger.Info(fmt.Sprintf("Starting %d sequential steps for '%s'", len(job.Steps), jobName))
 		for _, step := range job.Steps {
-			if err := runner.Execute(step, logger); err != nil {
+			if err := runner.Execute(ctx, step, logger); err != nil {
 				return fmt.Errorf("sequential step '%s' in job '%s' failed: %w", step.Name, jobName, err)
+			}
+			if err := ctx.Err(); err != nil {
+				return err
 			}
 		}
 		logger.Success(fmt.Sprintf("All %d sequential steps for job '%s' completed.", len(job.Steps), jobName))
@@ -42,6 +46,9 @@ func executeJob(jobName string, job config.Job, logger *runner.Logger) error {
 
 	if len(job.Parallel) > 0 {
 		logger.Info(fmt.Sprintf("Starting %d parallel steps for job '%s'", len(job.Parallel), jobName))
+
+		jobCtx, cancel := context.WithCancel(ctx)
+		defer cancel()
 
 		var wg sync.WaitGroup
 		var firstError error
@@ -53,11 +60,12 @@ func executeJob(jobName string, job config.Job, logger *runner.Logger) error {
 			go func(s config.Step) {
 				defer wg.Done()
 
-				err := runner.Execute(s, logger)
+				err := runner.Execute(jobCtx, s, logger)
 				if err != nil {
 					errMutex.Lock()
 					if firstError == nil {
 						firstError = fmt.Errorf("parallel step '%s' in job '%s' failed: %w", s.Name, jobName, err)
+						cancel()
 					}
 					errMutex.Unlock()
 				}
@@ -71,6 +79,10 @@ func executeJob(jobName string, job config.Job, logger *runner.Logger) error {
 		}
 
 		logger.Success(fmt.Sprintf("All %d parallel steps for job '%s' completed.", len(job.Parallel), jobName))
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	logger.Success(fmt.Sprintf("Job '%s' finished successfully.", jobName))

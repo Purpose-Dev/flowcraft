@@ -17,16 +17,21 @@
 package engine
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
 	"github.com/Purpose-Dev/flowcraft/internal/runner"
 )
 
-func Run(graph *Graph, logger *runner.Logger) error {
+func Run(ctx context.Context, graph *Graph, logger *runner.Logger) error {
 	levels, err := graph.TopologicalSort()
 	if err != nil {
 		return fmt.Errorf("failed to sort graph: %w", err)
+	}
+
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	totalJobs := len(graph.Nodes)
@@ -35,6 +40,8 @@ func Run(graph *Graph, logger *runner.Logger) error {
 	for i, level := range levels {
 		levelNum := i + 1
 		logger.StartGroup(fmt.Sprintf("Level %d/%d (Executing %d job(s) in parallel)", levelNum, len(levels), len(level)))
+
+		levelCtx, cancel := context.WithCancel(ctx)
 
 		var wg sync.WaitGroup
 		var firstError error
@@ -46,11 +53,12 @@ func Run(graph *Graph, logger *runner.Logger) error {
 			go func(n *Node) {
 				defer wg.Done()
 
-				err := executeJob(n.Name, n.Job, logger)
+				err := executeJob(levelCtx, n.Name, n.Job, logger)
 				if err != nil {
 					errMutex.Lock()
 					if firstError == nil {
 						firstError = err
+						cancel()
 					}
 					errMutex.Unlock()
 				}
@@ -58,11 +66,21 @@ func Run(graph *Graph, logger *runner.Logger) error {
 		}
 
 		wg.Wait()
+		cancel()
 
 		if firstError != nil {
 			logger.EndGroup()
+			if firstError == context.Canceled {
+				logger.Error(fmt.Sprintf("Level %d failed and was cancelled.", levelNum))
+				return fmt.Errorf("pipeline failed at level %d", levelNum)
+			}
 			logger.Error(fmt.Sprintf("Failed on level %d: %v", levelNum, firstError))
 			return fmt.Errorf("pipeline failed at level %d: %w", levelNum, firstError)
+		}
+
+		if err := ctx.Err(); err != nil {
+			logger.EndGroup()
+			return err
 		}
 
 		logger.Success(fmt.Sprintf("Level %d/%d completed successfully.", levelNum, len(levels)))
