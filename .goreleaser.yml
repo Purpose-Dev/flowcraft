@@ -31,12 +31,39 @@ release:
   github:
     owner: Purpose-Dev
     name: flowcraft
-  draft: true
+  draft: false
+  name_template: "Flowcraft {{ .Version }}"
+  header: |
+    ## Flowcraft {{ .Version }}
+    All new features in this version:
+  footer: |
+    ---
+    **Full Changelog:** https://github.com/{{.Env.GITHUB_REPOSITORY}}/compare/{{.PreviousTag}}...{{.Tag}}
 
 changelog:
   sort: asc
+  groups:
+    - title: 'New Features'
+      regexp: '^feat'
+      order: 0
+    - title: 'Bug Fixes'
+      regexp: '^fix'
+      order: 1
+    - title: 'Tests'
+      regexp: '^test'
+      order: 3
+    - title: 'Chore & Maintenance'
+      regexp: '^chore'
+      order: 4
+    - title: 'Documentation'
+      regexp: '^docs'
+      order: 4
+    - title: 'Other Commits'
+      order: 99
   filters:
     include:
       - '^feat'
       - '^fix'
       - '^test'
+      - '^chore'
+      - '^docs'
