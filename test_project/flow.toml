@@ -1,8 +1,15 @@
+[env]
+GREETING = "Hello from [env]"
+
 [jobs.setup]
 depends_on = []
+env = { GREETING = "Hello from [job.setup]" }
 [[jobs.setup.steps]]
 name = "Create artifacts directory"
 cmd = "mkdir -p bin"
+[[jobs.setup.steps]]
+name = "Test Env Subsitution"
+cmd = "echo $GREETING"
 
 [jobs.build-api]
 depends_on = ["setup"]
@@ -10,6 +17,9 @@ depends_on = ["setup"]
 name = "Go Build API"
 cmd = "echo '[API] Compiling Go binary...' && go build -o ../bin/api-server"
 dir = "api"
+[[jobs.build-api.steps]]
+name = "Test Global Env"
+cmd = "echo $GREETING"
 
 [jobs.build-webapp]
 depends_on = ["setup"]
