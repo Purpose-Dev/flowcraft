@@ -17,6 +17,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"log"
 
@@ -32,6 +33,8 @@ var runCmd = &cobra.Command{
 	Long: `Executes a flowcraft pipeline by reading a flow.toml file,
 building the dependency graph (DAG), and executing the jobs.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		ctx := cmd.Context()
+
 		logger := runner.NewLogger()
 		logger.Info("Flowcraft execution started.")
 
@@ -54,9 +57,14 @@ building the dependency graph (DAG), and executing the jobs.`,
 		}
 		logger.Success("DAG built and validated successfully (no cycles found).")
 
-		if err := engine.Run(graph, logger); err != nil {
-			logger.Error(fmt.Sprintf("Pipeline execution failed: %v", err))
-			log.Fatalf("Critical error: %v", err)
+		if err := engine.Run(ctx, graph, logger); err != nil {
+			if err == context.Canceled {
+				logger.Error("Pipeline execution cancelled by user (Ctrl+C).")
+				log.Fatal("Execution cancelled.")
+			} else {
+				logger.Error(fmt.Sprintf("Pipeline execution failed: %v", err))
+				log.Fatalf("Critical error: %v", err)
+			}
 		}
 
 		logger.Success("Flowcraft execution finished successfully.")

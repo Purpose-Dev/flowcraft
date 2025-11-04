@@ -17,6 +17,7 @@
 package cli
 
 import (
+	"context"
 	"fmt"
 	"os"
 
@@ -30,8 +31,20 @@ var rootCmd = &cobra.Command{
 It reads a flow.toml, builds an execution graph (DAG) and runs tasks in parallel.`,
 }
 
-func Execute() {
-	if err := rootCmd.Execute(); err != nil {
+var (
+	version = "dev"
+	commit  = "none"
+	date    = "unknown"
+)
+
+func SetVersionInfo(v, c, d string) {
+	version = v
+	commit = c
+	date = d
+}
+
+func Execute(ctx context.Context) {
+	if err := rootCmd.ExecuteContext(ctx); err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "An error occured: '%s'", err)
 		os.Exit(1)
 	}
