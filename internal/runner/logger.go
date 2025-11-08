@@ -19,6 +19,7 @@ package runner
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 const (
@@ -30,7 +31,8 @@ const (
 )
 
 type Logger struct {
-	isCI bool
+	isCI          bool
+	secretsToMask []string
 }
 
 func NewLogger() *Logger {
@@ -38,7 +40,26 @@ func NewLogger() *Logger {
 	return &Logger{isCI: isCI}
 }
 
+func (l Logger) SetSecretsToMask(secrets []string) {
+	for _, s := range secrets {
+		if s != "" {
+			l.secretsToMask = append(l.secretsToMask, s)
+		}
+	}
+}
+
+func (l *Logger) scrub(msg string) string {
+	if len(l.secretsToMask) == 0 {
+		return msg
+	}
+	for _, secret := range l.secretsToMask {
+		msg = strings.ReplaceAll(msg, secret, "[SECRET]")
+	}
+	return msg
+}
+
 func (l *Logger) Info(msg string) {
+	msg = l.scrub(msg)
 	if l.isCI {
 		fmt.Println(msg)
 	} else {
@@ -47,6 +68,7 @@ func (l *Logger) Info(msg string) {
 }
 
 func (l *Logger) Error(msg string) {
+	msg = l.scrub(msg)
 	if l.isCI {
 		fmt.Printf("::error::%s\n", msg)
 	} else {
@@ -55,6 +77,7 @@ func (l *Logger) Error(msg string) {
 }
 
 func (l *Logger) Success(msg string) {
+	msg = l.scrub(msg)
 	if l.isCI {
 		fmt.Printf("::success::%s\n", msg)
 	} else {
@@ -63,6 +86,7 @@ func (l *Logger) Success(msg string) {
 }
 
 func (l *Logger) StartGroup(title string) {
+	title = l.scrub(title)
 	if l.isCI {
 		fmt.Printf("::group::%s\n", title)
 	} else {
