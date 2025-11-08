@@ -19,6 +19,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"os"
 	"runtime"
 	"sync"
 
@@ -45,6 +46,13 @@ func Run(ctx context.Context, cfg *config.Config, graph *Graph, logger *runner.L
 	}
 	logger.Info(fmt.Sprintf("Concurrency limit set to %d worker(s).", numWorkers))
 
+	resolvedSecrets, secretValues, err := resolveSecrets(cfg, logger)
+	if err != nil {
+		return fmt.Errorf("failed to resolve secrets: %w", err)
+	}
+
+	logger.SetSecretsToMask(secretValues)
+
 	for i, level := range levels {
 		levelNum := i + 1
 		logger.StartGroup(fmt.Sprintf("Level %d/%d (Executing %d job(s) in parallel)", levelNum, len(levels), len(level)))
@@ -63,6 +71,12 @@ func Run(ctx context.Context, cfg *config.Config, graph *Graph, logger *runner.L
 			go func() {
 				for node := range jobQueue {
 					jobEnvs := mergeEnvs(cfg.Env, node.Job.Env)
+					for _, secretName := range node.Job.Secrets {
+						if val, ok := resolvedSecrets[secretName]; ok {
+							jobEnvs[secretName] = val
+						}
+					}
+
 					err := executeJob(levelCtx, node.Name, node.Job, jobEnvs, logger)
 					if err != nil {
 						errMutex.Lock()
@@ -107,6 +121,32 @@ func Run(ctx context.Context, cfg *config.Config, graph *Graph, logger *runner.L
 
 	logger.Success("Pipeline finished successfully. All jobs completed.")
 	return nil
+}
+
+func resolveSecrets(cfg *config.Config, logger *runner.Logger) (map[string]string, []string, error) {
+	resolved := make(map[string]string)
+	var valuesToMask []string
+
+	for logicalName, secret := range cfg.Secrets {
+		if secret.Provider != "env" {
+			logger.Error(fmt.Sprintf("Secret '%s': provider '%s' is not supported (only 'env' is supported in v0.3.0)", logicalName, secret.Provider))
+			continue
+		}
+		if secret.Key == "" {
+			return nil, nil, fmt.Errorf("secret '%s': 'key' in config cannot be empty", logicalName)
+		}
+		val, exists := os.LookupEnv(secret.Key)
+		if !exists {
+			logger.Error(fmt.Sprintf("Secret '%s': environment variable '%s' is not set", logicalName, secret.Key))
+		}
+
+		resolved[logicalName] = val
+		if val != "" {
+			valuesToMask = append(valuesToMask, val)
+		}
+	}
+
+	return resolved, valuesToMask, nil
 }
 
 func mergeEnvs(globalEnv, jobEnv map[string]string) map[string]string {

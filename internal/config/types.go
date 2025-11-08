@@ -37,7 +37,7 @@ type Job struct {
 	Steps     []Step            `toml:"steps"`
 	Parallel  []Step            `toml:"parallel"`
 	DependsOn []string          `toml:"depends_on"`
-	Secrets   map[string]Secret `toml:"secrets"`
+	Secrets   []string          `toml:"secrets"`
 }
 
 type Step struct {
