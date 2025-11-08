@@ -22,6 +22,7 @@ import (
 	"os"
 	"runtime"
 	"sync"
+	"time"
 
 	"github.com/Purpose-Dev/flowcraft/internal/config"
 	"github.com/Purpose-Dev/flowcraft/internal/runner"
@@ -70,18 +71,32 @@ func Run(ctx context.Context, cfg *config.Config, graph *Graph, logger *runner.L
 		for w := 0; w < numWorkers; w++ {
 			go func() {
 				for node := range jobQueue {
-					jobEnvs := mergeEnvs(cfg.Env, node.Job.Env)
-					for _, secretName := range node.Job.Secrets {
-						if val, ok := resolvedSecrets[secretName]; ok {
-							jobEnvs[secretName] = val
+					var jobErr error
+					totalAttempts := 1 + node.Job.Retry
+
+					for attempt := 1; attempt <= totalAttempts; attempt++ {
+						jobEnvs := mergeEnvs(cfg.Env, node.Job.Env)
+						for _, secretName := range node.Job.Secrets {
+							if val, ok := resolvedSecrets[secretName]; ok {
+								jobEnvs[secretName] = val
+							}
+						}
+
+						jobErr = executeJob(levelCtx, node.Name, node.Job, jobEnvs, logger)
+						if jobErr == nil {
+							break
+						}
+
+						if attempt < totalAttempts {
+							logger.Error(fmt.Sprintf("Job '%s' failed (attempt %d/%d), retrying...", node.Name, attempt, totalAttempts))
+							time.Sleep(3 * time.Second)
 						}
 					}
 
-					err := executeJob(levelCtx, node.Name, node.Job, jobEnvs, logger)
-					if err != nil {
+					if jobErr != nil {
 						errMutex.Lock()
 						if firstError == nil {
-							firstError = err
+							firstError = jobErr
 							cancel()
 						}
 						errMutex.Unlock()
