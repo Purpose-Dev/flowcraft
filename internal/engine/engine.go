@@ -39,7 +39,7 @@ func Run(ctx context.Context, cfg *config.Config, graph *Graph, logger *runner.L
 	totalJobs := len(graph.Nodes)
 	logger.Info(fmt.Sprintf("Starting pipeline... %d job(s) to run in %d level(s).", totalJobs, len(levels)))
 
-	numWorkers := len(graph.Nodes)
+	numWorkers := cfg.Settings.Parallelism
 	if numWorkers <= 0 {
 		numWorkers = runtime.NumCPU()
 	}
