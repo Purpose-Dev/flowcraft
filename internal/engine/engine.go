@@ -19,6 +19,7 @@ package engine
 import (
 	"context"
 	"fmt"
+	"runtime"
 	"sync"
 
 	"github.com/Purpose-Dev/flowcraft/internal/config"
@@ -38,6 +39,12 @@ func Run(ctx context.Context, cfg *config.Config, graph *Graph, logger *runner.L
 	totalJobs := len(graph.Nodes)
 	logger.Info(fmt.Sprintf("Starting pipeline... %d job(s) to run in %d level(s).", totalJobs, len(levels)))
 
+	numWorkers := len(graph.Nodes)
+	if numWorkers <= 0 {
+		numWorkers = runtime.NumCPU()
+	}
+	logger.Info(fmt.Sprintf("Concurrency limit set to %d worker(s).", numWorkers))
+
 	for i, level := range levels {
 		levelNum := i + 1
 		logger.StartGroup(fmt.Sprintf("Level %d/%d (Executing %d job(s) in parallel)", levelNum, len(levels), len(level)))
@@ -48,24 +55,33 @@ func Run(ctx context.Context, cfg *config.Config, graph *Graph, logger *runner.L
 		var firstError error
 		var errMutex sync.Mutex
 
+		jobQueue := make(chan *Node, len(level))
+
 		wg.Add(len(level))
 
-		for _, node := range level {
-			go func(n *Node) {
-				defer wg.Done()
-
-				jobEnvs := mergeEnvs(cfg.Env, n.Job.Env)
-				err := executeJob(levelCtx, n.Name, n.Job, jobEnvs, logger)
-				if err != nil {
-					errMutex.Lock()
-					if firstError == nil {
-						firstError = err
-						cancel()
+		for w := 0; w < numWorkers; w++ {
+			go func() {
+				for node := range jobQueue {
+					jobEnvs := mergeEnvs(cfg.Env, node.Job.Env)
+					err := executeJob(levelCtx, node.Name, node.Job, jobEnvs, logger)
+					if err != nil {
+						errMutex.Lock()
+						if firstError == nil {
+							firstError = err
+							cancel()
+						}
+						errMutex.Unlock()
 					}
-					errMutex.Unlock()
+					wg.Done()
 				}
-			}(node)
+			}()
 		}
+
+		for _, node := range level {
+			jobQueue <- node
+		}
+
+		close(jobQueue)
 
 		wg.Wait()
 		cancel()

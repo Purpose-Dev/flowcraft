@@ -16,9 +16,14 @@
 
 package config
 
+type Settings struct {
+	Parallelism int `toml:"parallelism"`
+}
+
 type Config struct {
-	Jobs map[string]Job    `toml:"jobs"`
-	Env  map[string]string `toml:"env"`
+	Settings Settings          `toml:"settings"`
+	Jobs     map[string]Job    `toml:"jobs"`
+	Env      map[string]string `toml:"env"`
 }
 
 type Job struct {
