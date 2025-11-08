@@ -20,8 +20,14 @@ type Settings struct {
 	Parallelism int `toml:"parallelism"`
 }
 
+type Secret struct {
+	Provider string `toml:"provider"`
+	Key      string `toml:"key"`
+}
+
 type Config struct {
 	Settings Settings          `toml:"settings"`
+	Secrets  map[string]Secret `toml:"secrets"`
 	Jobs     map[string]Job    `toml:"jobs"`
 	Env      map[string]string `toml:"env"`
 }
@@ -31,6 +37,7 @@ type Job struct {
 	Steps     []Step            `toml:"steps"`
 	Parallel  []Step            `toml:"parallel"`
 	DependsOn []string          `toml:"depends_on"`
+	Secrets   map[string]Secret `toml:"secrets"`
 }
 
 type Step struct {
