@@ -49,7 +49,7 @@ jobs:
           grep -q "Concurrency limit set to 4 worker(s)" e2e_output.log
           echo "✅ [PASS] Concurrency limiter set to 4."
           
-          grep -q "My secret value is [SECRET]" e2e_output.log
+          grep -q -F "My secret value is [SECRET]" e2e_output.log
           echo "✅ [PASS] Secret masking is correct."
           
           grep -q "Step 'Test 2: Injection' completed successfully" e2e_output.log
