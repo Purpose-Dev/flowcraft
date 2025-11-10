@@ -39,6 +39,8 @@ type Job struct {
 	DependsOn []string          `toml:"depends_on"`
 	Secrets   []string          `toml:"secrets"`
 	Retry     int               `toml:"retry"`
+	Inputs    []string          `toml:"inputs"`
+	Outputs   []string          `toml:"outputs"`
 }
 
 type Step struct {
