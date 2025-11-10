@@ -18,8 +18,10 @@ package runner
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"strings"
+	"sync"
 )
 
 const (
@@ -31,13 +33,28 @@ const (
 )
 
 type Logger struct {
+	out           io.Writer
+	mu            sync.Mutex
 	isCI          bool
 	secretsToMask []string
+	err           error
 }
 
 func NewLogger() *Logger {
 	isCI := os.Getenv("GITHUB_ACTIONS") == "true"
-	return &Logger{isCI: isCI}
+	return &Logger{isCI: isCI, out: os.Stdout}
+}
+
+func (l *Logger) GetWriter() io.Writer {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.out
+}
+
+func (l *Logger) SetWriter(w io.Writer) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.out = w
 }
 
 func (l *Logger) SetSecretsToMask(secrets []string) {
@@ -46,6 +63,12 @@ func (l *Logger) SetSecretsToMask(secrets []string) {
 			l.secretsToMask = append(l.secretsToMask, s)
 		}
 	}
+}
+
+func (l *Logger) Err() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.err
 }
 
 func (l *Logger) scrub(msg string) string {
@@ -58,47 +81,77 @@ func (l *Logger) scrub(msg string) string {
 	return msg
 }
 
+func (l *Logger) write(data []byte) {
+	if l.err != nil {
+		return
+	}
+
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	_, err := l.out.Write(data)
+	if err != nil && l.err == nil {
+		l.err = err
+		_, _ = fmt.Fprintf(os.Stderr, "%s[LOGGER ERROR] Failed to write logs: %v%s\n", ColorRed, err, ColorReset)
+	}
+}
+
 func (l *Logger) Info(msg string) {
 	msg = l.scrub(msg)
+	var formattedMsg string
 	if l.isCI {
-		fmt.Println(msg)
+		formattedMsg = msg + "\n"
 	} else {
-		fmt.Printf("%s[INFO] %s%s\n", ColorCyan, msg, ColorReset)
+		formattedMsg = fmt.Sprintf("%s[INFO] %s%s\n", ColorCyan, msg, ColorReset)
 	}
+	l.write([]byte(formattedMsg))
 }
 
 func (l *Logger) Error(msg string) {
 	msg = l.scrub(msg)
+	var formattedMsg string
 	if l.isCI {
-		fmt.Printf("::error::%s\n", msg)
+		formattedMsg = fmt.Sprintf("::error::%s\n", msg)
 	} else {
-		fmt.Printf("%s[ERROR] %s%s\n", ColorRed, msg, ColorReset)
+		formattedMsg = fmt.Sprintf("%s[ERROR] %s%s\n", ColorRed, msg, ColorReset)
 	}
+	l.write([]byte(formattedMsg))
 }
 
 func (l *Logger) Success(msg string) {
 	msg = l.scrub(msg)
+	var formattedMsg string
 	if l.isCI {
-		fmt.Printf("::success::%s\n", msg)
+		formattedMsg = fmt.Sprintf("::success::%s\n", msg)
 	} else {
-		fmt.Printf("%s[SUCCESS] %s%s\n", ColorGreen, msg, ColorReset)
+		formattedMsg = fmt.Sprintf("%s[SUCCESS] %s%s\n", ColorGreen, msg, ColorReset)
 	}
+	l.write([]byte(formattedMsg))
 }
 
 func (l *Logger) StartGroup(title string) {
 	title = l.scrub(title)
+	var formattedMsg string
 	if l.isCI {
-		fmt.Printf("::group::%s\n", title)
+		formattedMsg = fmt.Sprintf("::group::%s\n", title)
 	} else {
-		fmt.Printf("\n%s▶ %s%s\n", ColorYellow, title, ColorReset)
-		fmt.Println("------------------------------------------------")
+		formattedMsg = fmt.Sprintf("\n%s▶ %s%s\n%s\n", ColorYellow, title,
+			ColorReset, "------------------------------------------------",
+		)
 	}
+	l.write([]byte(formattedMsg))
 }
 
 func (l *Logger) EndGroup() {
+	var formattedMsg string
 	if l.isCI {
-		fmt.Println("::end_group::")
+		formattedMsg = fmt.Sprintf("::end_group::\n")
 	} else {
-		fmt.Println("------------------------------------------------")
+		formattedMsg = fmt.Sprintf("------------------------------------------------\n")
 	}
+	l.write([]byte(formattedMsg))
+}
+
+func (l *Logger) Replay(logs []byte) {
+	l.write(logs)
 }
