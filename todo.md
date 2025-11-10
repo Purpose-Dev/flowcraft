@@ -15,8 +15,8 @@ Our goal is to ensure that a pipeline you run locally works exactly the same way
 
 This is about making `flowcraft run` the most powerful local-first orchestrator available.
 
-* [ ] **Concurrency Limiter:** Control how many jobs run in parallel (`parallelism = 8`).
-* [ ] **Job Retries:** Automatically retry flaky steps (`retry = 3`).
+* [x] **Concurrency Limiter:** Control how many jobs run in parallel (`parallelism = 8`).
+* [x] **Job Retries:** Automatically retry flaky steps (`retry = 3`).
 * [ ] **Timeouts:** Kill jobs or steps that run for too long (`timeout = "5m"`)
 * [ ] **Conditional Execution (`when`):** Run jobs/steps based on conditions (`when = "env:CI_BRANCH == 'main'"` or
   `when = "failure()"`).
@@ -49,7 +49,7 @@ Fast pipelines are happy pipelines.
 
 Enterprise-grade features for security and control.
 
-* [ ] **Log Secret Masking:** Automatically scrub secrets from all log output.
+* [x] **Log Secret Masking:** Automatically scrub secrets from all log output.
 * [ ] **HashiCorp Vault Integration:** A `vault:` provider to pull secrets directly from Vault.
 * [ ] **Manual Approve Gates:** Pause a pipeline and require human approval (`approve = true`), both in the CLI and the
   UI.
