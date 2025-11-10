@@ -24,6 +24,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Purpose-Dev/flowcraft/internal/cache"
 	"github.com/Purpose-Dev/flowcraft/internal/config"
 	"github.com/Purpose-Dev/flowcraft/internal/runner"
 )
@@ -54,6 +55,11 @@ func Run(ctx context.Context, cfg *config.Config, graph *Graph, logger *runner.L
 
 	logger.SetSecretsToMask(secretValues)
 
+	cacheStore, err := cache.NewStore(".")
+	if err != nil {
+		return fmt.Errorf("failed to initialize cache: %w", err)
+	}
+
 	for i, level := range levels {
 		levelNum := i + 1
 		logger.StartGroup(fmt.Sprintf("Level %d/%d (Executing %d job(s) in parallel)", levelNum, len(levels), len(level)))
@@ -82,7 +88,7 @@ func Run(ctx context.Context, cfg *config.Config, graph *Graph, logger *runner.L
 							}
 						}
 
-						jobErr = executeJob(levelCtx, node.Name, node.Job, jobEnvs, logger)
+						jobErr = executeJob(levelCtx, node.Name, node.Job, jobEnvs, logger, cacheStore)
 						if jobErr == nil {
 							break
 						}
