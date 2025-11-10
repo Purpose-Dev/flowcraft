@@ -40,7 +40,7 @@ func NewLogger() *Logger {
 	return &Logger{isCI: isCI}
 }
 
-func (l Logger) SetSecretsToMask(secrets []string) {
+func (l *Logger) SetSecretsToMask(secrets []string) {
 	for _, s := range secrets {
 		if s != "" {
 			l.secretsToMask = append(l.secretsToMask, s)
