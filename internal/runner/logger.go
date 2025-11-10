@@ -107,6 +107,17 @@ func (l *Logger) Info(msg string) {
 	l.write([]byte(formattedMsg))
 }
 
+func (l *Logger) Warn(msg string) {
+	msg = l.scrub(msg)
+	var formattedMsg string
+	if l.isCI {
+		formattedMsg = fmt.Sprintf("::warn::%s\n", msg)
+	} else {
+		formattedMsg = fmt.Sprintf("%s[WARN] %s%s\n", ColorYellow, msg, ColorReset)
+	}
+	l.write([]byte(formattedMsg))
+}
+
 func (l *Logger) Error(msg string) {
 	msg = l.scrub(msg)
 	var formattedMsg string
