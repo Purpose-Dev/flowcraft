@@ -23,11 +23,6 @@ jobs:
         with:
           go-version: '1.25.3'
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: '24.x'
-
       - name: Run flowcraft unit tests
         run: go test ./...
 
@@ -37,6 +32,52 @@ jobs:
       - name: Copy binary to test directory
         run: cp flowcraft ./test_project
 
-      - name: Run flowcraft on test_project
+      - name: Run E2E Test Harness
         working-directory: ./test_project
-        run: ./flowcraft run --file flow.toml
+        env:
+          FLOWCRAFT_E2E_SECRET: "super-secret-123"
+        run: |
+          rm -f attempts.log e2e_output.log
+          
+          echo "--- STARTING E2E TEST ---"
+          ! ./flowcraft run --file flow.toml > e2e_output.log 2>&1
+          
+          echo "--- FLOWCRAFT RUN FINISHED ---"
+          echo "--- Captured Log Output: ---"
+          cat e2e_output.log
+          echo "--- End of Log Output ---"
+          
+          echo "--- STARTING VALIDATION ---"
+          
+          grep -q "Concurrency limit set to 4 worker(s)" e2e_output.log
+          echo "✅ [PASS] Concurrency limiter set to 4."
+          
+          grep -q "My secret value is [SECRET]" e2e_output.log
+          echo "✅ [PASS] Secret masking is correct."
+          
+          grep -q "Step 'Test 2: Injection' completed successfully" e2e_output.log
+          echo "✅ [PASS] Secret injection test passed."
+          
+          RETRY_COUNT_1=$(grep -c "failed (attempt 1/3), retrying..." e2e_output.log)
+          if [ "$RETRY_COUNT_1" -ne 1 ]; then
+            echo "❌ [FAIL] Expected 1 log for 'attempt 1/3', found $RETRY_COUNT_1"
+            exit 1
+          fi
+          
+          RETRY_COUNT_2=$(grep -c "failed (attempt 2/3), retrying..." e2e_output.log)
+          if [ "$RETRY_COUNT_2" -ne 1 ]; then
+            echo "❌ [FAIL] Expected 1 log for 'attempt 2/3', found $RETRY_COUNT_2"
+            exit 1
+          fi
+          echo "✅ [PASS] Job retry attempts (1/3 and 2/3) found."
+          
+          grep -q "Pipeline execution failed" e2e_output.log
+          echo "✅ [PASS] Pipeline failed correctly after all retries."
+          
+          if grep -q "ERROR: This job should never have run!" e2e_output.log; then
+            echo "❌ [FAIL] 'final-job' was executed but should not have been."
+            exit 1
+          fi
+          echo "✅ [PASS] Downstream job 'final-job' was correctly skipped."
+          
+          echo "--- E2E TEST SUCCEEDED ---"
