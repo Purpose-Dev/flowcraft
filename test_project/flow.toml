@@ -1,53 +1,52 @@
+[settings]
+parallelism = 4
+
+[secrets]
+test_token = { provider = "env", key = "FLOWCRAFT_E2E_SECRET" }
+
 [env]
-GREETING = "Hello from [env]"
+GREETING = "Hello from E2E Test"
 
-[jobs.setup]
+[jobs.flaky-job]
 depends_on = []
-env = { GREETING = "Hello from [job.setup]" }
-[[jobs.setup.steps]]
-name = "Create artifacts directory"
-cmd = "mkdir -p bin"
-[[jobs.setup.steps]]
-name = "Test Env Subsitution"
-cmd = "echo $GREETING"
+retry = 2
 
-[jobs.build-api]
-depends_on = ["setup"]
-[[jobs.build-api.steps]]
-name = "Go Build API"
-cmd = "echo '[API] Compiling Go binary...' && go build -o ../bin/api-server"
-dir = "api"
-[[jobs.build-api.steps]]
-name = "Test Global Env"
-cmd = "echo $GREETING"
+[[jobs.flaky-job.steps]]
+name = "This step will fail 3 times"
+cmd = "echo 'Attempt' >> attempts.log && exit 1"
 
-[jobs.build-webapp]
-depends_on = ["setup"]
-[[jobs.build-webapp.steps]]
-name = "NPM Install"
-cmd = "npm install"
-dir = "webapp"
-[[jobs.build-webapp.steps]]
-name = "NPM Build"
-cmd = "npm run build"
-dir = "webapp"
+[jobs.secret-tester]
+depends_on = []
+secrets = ["test_token"]
 
-[jobs.test-api]
-depends_on = ["build-api"]
-[[jobs.test-api.parallel]]
-name = "Go Test (Unit)"
-cmd = "go test -v ./..."
-dir = "api"
-[[jobs.test-api.parallel]]
-name = "Smoke Test (Integration)"
-cmd = "../bin/api-server"
-dir = "api"
+[[jobs.secret-tester.steps]]
+name = "Test 1: Masking"
+cmd = "echo 'My secret value is $test_token'"
 
-[jobs.deploy]
-depends_on = ["test-api", "build-webapp"]
-[[jobs.deploy.steps]]
-name = "Check Artifacts"
-cmd = "echo 'Checking artifacts...' && ls -l bin/api-server && ls -l webapp/dist/bundle.js"
-[[jobs.deploy.steps]]
-name = "Deploy"
-cmd = "echo '[DEPLOY] Artifacts verified. Deploying !'"
+[[jobs.secret-tester.steps]]
+name = "Test 2: Injection"
+cmd = "test \"$test_token\" = \"super-secret-123\""
+
+[jobs.parallel-a]
+depends_on = []
+[[jobs.parallel-a.steps]]
+name = "Parallel A"
+cmd = "echo 'Job A running' && sleep 1"
+
+[jobs.parallel-b]
+depends_on = []
+[[jobs.parallel-b.steps]]
+name = "Parallel B"
+cmd = "echo 'Job B running' && sleep 1"
+
+[jobs.parallel-c]
+depends_on = []
+[[jobs.parallel-c.steps]]
+name = "Parallel C"
+cmd = "echo 'Job C running' && sleep 1"
+
+[jobs.final-job]
+depends_on = ["flaky-job"]
+[[jobs.final-job.steps]]
+name = "Should Not Run"
+cmd = "echo 'ERROR: This job should never have run!' && exit 1"
